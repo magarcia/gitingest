@@ -30,7 +30,7 @@ Inspired by [gitingest.com](https://gitingest.com/)
 ## Installation
 
 ```bash
-npm install @magarcia/gitingest
+npm install -g @magarcia/gitingest
 ```
 
 ## Usage
