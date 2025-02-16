@@ -1,5 +1,8 @@
 # Git Ingest 
 
+[![npm version](https://img.shields.io/npm/v/@magarcia/gitingest.svg)](https://npmjs.com/package/@magarcia/gitingest)
+[![npm downloads](https://img.shields.io/npm/dm/@magarcia/gitingest)](https://npmjs.com/package/@magarcia/gitingest)
+
 Turn any Git repository into a simple text digest of its codebase.
 
 This is useful for feeding a codebase into any LLM.
