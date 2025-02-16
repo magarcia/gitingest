@@ -3,16 +3,11 @@ import fs from 'fs';
 import path from 'path';
 import ignore from 'ignore';
 import glob from 'glob';
-import clipboardy from 'clipboardy';
-import { execSync } from 'child_process';
 import os from 'os';
 import crypto from 'crypto';
-import {rimrafSync} from 'rimraf';
-
-interface GitInfo {
-    url: string;
-    branch?: string;
-}
+import { execSync } from 'child_process';
+import clipboardy from 'clipboardy';
+import { rimraf } from 'rimraf';
 
 /**
  * Converts a GitHub or GitLab web URL to a git URL
@@ -20,55 +15,38 @@ interface GitInfo {
  * @returns Object containing the git URL and optionally the branch
  */
 function convertWebUrlToGitUrl(url: string): GitInfo {
-    // Remove trailing slash if present
-    url = url.replace(/\/$/, '');
+    // GitHub web URL patterns
+    const githubWebPattern = /^https:\/\/github\.com\/([^/]+)\/([^/]+)(\/tree\/([^/]+))?/;
+    const githubRepoPattern = /^https:\/\/github\.com\/([^/]+)\/([^/]+)$/;
+    
+    // GitLab web URL patterns
+    const gitlabWebPattern = /^https:\/\/gitlab\.com\/([^/]+)\/([^/]+)(\/-\/tree\/([^/]+))?/;
+    const gitlabRepoPattern = /^https:\/\/gitlab\.com\/([^/]+)\/([^/]+)$/;
 
-    // GitHub URL patterns
-    const githubPatterns = [
-        // GitHub web URL with branch/tree
-        /^https?:\/\/github\.com\/([^\/]+)\/([^\/]+)\/(?:tree|blob)\/([^\/]+)(?:\/.*)?$/,
-        // GitHub web URL without branch
-        /^https?:\/\/github\.com\/([^\/]+)\/([^\/]+)\/?$/
-    ];
-
-    // GitLab URL patterns
-    const gitlabPatterns = [
-        // GitLab web URL with branch/tree
-        /^https?:\/\/gitlab\.com\/([^\/]+)\/([^\/]+)\/(?:-\/tree|blob)\/([^\/]+)(?:\/.*)?$/,
-        // GitLab web URL without branch
-        /^https?:\/\/gitlab\.com\/([^\/]+)\/([^\/]+)\/?$/
-    ];
-
-    // Check GitHub patterns
-    for (const pattern of githubPatterns) {
-        const match = url.match(pattern);
-        if (match) {
-            const [, owner, repo, branch] = match;
-            return {
-                url: `https://github.com/${owner}/${repo}.git`,
-                branch: branch
-            };
-        }
+    let match;
+    
+    // Try matching GitHub patterns
+    if ((match = url.match(githubWebPattern)) || (match = url.match(githubRepoPattern))) {
+        const [, owner, repo, , branch] = match;
+        const cleanRepo = repo.replace(/\.git$/, '');
+        return {
+            url: `https://github.com/${owner}/${cleanRepo}.git`,
+            ...(branch && { branch })
+        };
     }
-
-    // Check GitLab patterns
-    for (const pattern of gitlabPatterns) {
-        const match = url.match(pattern);
-        if (match) {
-            const [, owner, repo, branch] = match;
-            return {
-                url: `https://gitlab.com/${owner}/${repo}.git`,
-                branch: branch
-            };
-        }
+    
+    // Try matching GitLab patterns
+    if ((match = url.match(gitlabWebPattern)) || (match = url.match(gitlabRepoPattern))) {
+        const [, owner, repo, , branch] = match;
+        const cleanRepo = repo.replace(/\.git$/, '');
+        return {
+            url: `https://gitlab.com/${owner}/${cleanRepo}.git`,
+            ...(branch && { branch })
+        };
     }
-
-    // If it's already a git URL, return as is
-    if (isGitUrl(url)) {
-        return { url };
-    }
-
-    throw new Error('Invalid repository URL');
+    
+    // If no patterns match, return the original URL
+    return { url };
 }
 
 /**
@@ -77,43 +55,42 @@ function convertWebUrlToGitUrl(url: string): GitInfo {
  * @returns boolean indicating if it's a valid repository URL
  */
 function isGitUrl(url: string): boolean {
-    if (!url || typeof url !== 'string') {
-        return false;
-    }
-
-    // Direct git URL patterns
-    const gitUrlPattern = /^(git|https?):\/\/(?:github|gitlab)\.com/i;
-    if (gitUrlPattern.test(url) || url.startsWith('git@')) {
-        return true;
-    }
-
-    // GitHub and GitLab web URL patterns
-    const webUrlPattern = /^https?:\/\/(?:github|gitlab)\.com\/[^\/]+\/[^\/]+(?:\/(?:(?:tree|blob)|(?:-\/(?:tree|blob)))\/[^\/]+)?(?:\/.*)?$/;
-    return webUrlPattern.test(url);
+    // Git URL patterns
+    const patterns = [
+        /^git@[^:]+:.+\.git$/,
+        /^https:\/\/[^/]+\/.+\.git$/,
+        /^https:\/\/github\.com\/[^/]+\/[^/]+(\/tree\/[^/]+)?$/,
+        /^https:\/\/gitlab\.com\/[^/]+\/[^/]+(\/-\/tree\/[^/]+)?$/
+    ];
+    
+    return patterns.some(pattern => pattern.test(url));
 }
 
 /**
  * Checks if a file is likely to be binary by examining its contents.
  * Uses a heuristic approach by checking for null bytes in the first portion of the file.
- *
+ * 
  * @param filePath - The path to the file to check
  * @returns True if the file is likely binary, false otherwise
  */
 function isBinaryFile(filePath: string): boolean {
     try {
-        // Read the first 24 bytes of the file as a buffer
-        const buffer = fs.readFileSync(filePath, { encoding: null, flag: 'r' });
-
-        // Check for null bytes in the first 24 bytes
-        // This is a simple heuristic - binary files often contain null bytes
-        for (let i = 0; i < Math.min(24, buffer.length); i++) {
+        // Read the first 512 bytes of the file
+        const fd = fs.openSync(filePath, 'r');
+        const buffer = Buffer.alloc(512);
+        const bytesRead = fs.readSync(fd, buffer, 0, 512, 0);
+        fs.closeSync(fd);
+        
+        // Check for null bytes in the read portion
+        for (let i = 0; i < bytesRead; i++) {
             if (buffer[i] === 0) {
-                return true; // Found a null byte, likely binary
+                return true;
             }
         }
-        return false; // No null bytes found, likely text
-    } catch (e) {
-        // If we can't read the file, assume it's not binary
+        
+        return false;
+    } catch {
+        // If there's any error reading the file, assume it's not binary
         return false;
     }
 }
@@ -166,12 +143,13 @@ function listDirectoryTree(dir: string, prefix: string = '', ignoreFilter: Retur
 }
 
 /**
- * Generates a tree structure of the repository, respecting .gitignore rules
+ * Generates a tree structure of the repository, respecting .gitignore rules and additional ignore patterns
  * 
  * @param repoPath - Path to the local git repository
+ * @param additionalIgnorePatterns - Additional glob patterns to ignore
  * @returns The tree structure as a string
  */
-function generateTreeStructure(repoPath: string): string {
+function generateTreeStructure(repoPath: string, additionalIgnorePatterns: string[] = []): string {
     try {
         const gitignorePath = path.join(repoPath, '.gitignore');
         const ignoreFilter = ignore();
@@ -183,6 +161,11 @@ function generateTreeStructure(repoPath: string): string {
         if (fs.existsSync(gitignorePath)) {
             const gitignoreContent = fs.readFileSync(gitignorePath, 'utf8');
             ignoreFilter.add(gitignoreContent);
+        }
+
+        // Add additional ignore patterns if provided
+        if (additionalIgnorePatterns.length > 0) {
+            ignoreFilter.add(additionalIgnorePatterns);
         }
 
         // Change to the repository directory to get correct relative paths
@@ -207,9 +190,10 @@ function generateTreeStructure(repoPath: string): string {
  * Skips binary files and handles errors gracefully.
  * 
  * @param repoPath - Path to the local git repository
+ * @param additionalIgnorePatterns - Additional glob patterns to ignore
  * @returns Object containing repository content and tree structure
  */
-export function extractRepositoryContent(repoPath: string): { content: string, tree: string } {
+function extractRepositoryContent(repoPath: string, additionalIgnorePatterns: string[] = []): { content: string, tree: string } {
     if (!fs.existsSync(repoPath)) {
         throw new Error(`Repository path does not exist: ${repoPath}`);
     }
@@ -227,6 +211,11 @@ export function extractRepositoryContent(repoPath: string): { content: string, t
         ignoreFilter.add(gitignoreContent);
     }
 
+    // Add additional ignore patterns if provided
+    if (additionalIgnorePatterns.length > 0) {
+        ignoreFilter.add(additionalIgnorePatterns);
+    }
+
     // Find all files in the repository
     const files = glob.sync('**/*', {
         cwd: repoPath,
@@ -240,7 +229,7 @@ export function extractRepositoryContent(repoPath: string): { content: string, t
     files.forEach(file => {
         const relativePath = path.relative(repoPath, file);
         
-        // Skip if file is ignored by .gitignore
+        // Skip if file is ignored by .gitignore or additional patterns
         if (ignoreFilter.ignores(relativePath)) {
             return;
         }
@@ -259,8 +248,8 @@ export function extractRepositoryContent(repoPath: string): { content: string, t
         }
     });
 
-    // Generate tree structure
-    const tree = generateTreeStructure(repoPath);
+    // Generate tree structure with the same ignore patterns
+    const tree = generateTreeStructure(repoPath, additionalIgnorePatterns);
 
     return {
         content: contentParts.join('\n'),
@@ -307,7 +296,7 @@ function cloneRepository(gitInfo: GitInfo, targetDir: string): void {
 function removeTempDir(dir: string): void {
     try {
         // Use rimraf for cross-platform directory removal
-        rimrafSync(dir);
+        rimraf.sync(dir);
     } catch (error) {
         console.error(`Warning: Failed to remove temporary directory ${dir}: ${error instanceof Error ? error.message : String(error)}`);
     }
@@ -316,15 +305,76 @@ function removeTempDir(dir: string): void {
 // Export functions for testing
 export { convertWebUrlToGitUrl, isGitUrl };
 
+// Help text for the CLI
+const helpText = `
+Git Ingest - Extract and analyze content from Git repositories
+
+Usage:
+  git-ingest [options] [repository]
+
+Arguments:
+  repository            Path to local repository or Git URL (default: current directory)
+
+Options:
+  --help               Show this help message
+  --copy, -c          Copy the output to clipboard
+  --ignore <pattern>   Ignore files/directories matching the glob pattern
+                      (can be used multiple times)
+
+Examples:
+  # Analyze current directory
+  git-ingest
+
+  # Analyze local repository
+  git-ingest /path/to/repo
+
+  # Analyze remote repository
+  git-ingest https://github.com/user/repo
+
+  # Ignore specific files
+  git-ingest --ignore "*.log" --ignore "temp/*"
+
+  # Copy output to clipboard
+  git-ingest /path/to/repo --copy
+`;
+
 // If running as a script
 if (require.main === module) {
     const args = process.argv.slice(2);
-    const shouldCopy = args.includes('--copy') || args.includes('-c');
-    let repoPath = args.find(arg => !arg.startsWith('-')) || process.cwd();
+    
+    // Show help if requested
+    if (args.includes('--help')) {
+        console.log(helpText);
+        process.exit(0);
+    }
+
+    // Extract ignore patterns
+    const ignorePatterns: string[] = [];
+    for (let i = 0; i < args.length; i++) {
+        if (args[i] === '--ignore') {
+            if (i + 1 < args.length && !args[i + 1].startsWith('-')) {
+                ignorePatterns.push(args[i + 1]);
+                i++; // Skip the next argument since we've used it
+            }
+        }
+    }
+    
+    // Filter out the --ignore and their values from args
+    const filteredArgs = args.filter((arg, index) => {
+        if (arg === '--ignore') {
+            return false;
+        }
+        if (index > 0 && args[index - 1] === '--ignore') {
+            return false;
+        }
+        return true;
+    });
+    
+    const repoPath = filteredArgs.find(arg => !arg.startsWith('-')) || process.cwd();
+    let tempDir: string | null = null;
 
     try {
         let targetPath = repoPath;
-        let tempDir: string | null = null;
 
         // If it's a git URL or web URL, clone it to a temporary directory
         if (isGitUrl(repoPath)) {
@@ -335,24 +385,29 @@ if (require.main === module) {
             targetPath = tempDir;
         }
 
-        try {
-            const { content, tree } = extractRepositoryContent(targetPath);
-            const output = `Repository Tree Structure:\n${tree}\n\nRepository Content:\n${content}`;
+        // Extract content with additional ignore patterns
+        const { content, tree } = extractRepositoryContent(targetPath, ignorePatterns);
+        const output = `Repository Tree Structure:\n${tree}\n\nRepository Content:\n${content}`;
 
-            if (shouldCopy) {
-                clipboardy.writeSync(output);
-                console.log('Content has been copied to clipboard!');
-            } else {
-                console.log(output);
-            }
-        } finally {
-            // Clean up temporary directory if it was created
-            if (tempDir) {
-                removeTempDir(tempDir);
-            }
+        const shouldCopy = filteredArgs.includes('--copy') || filteredArgs.includes('-c');
+        if (shouldCopy) {
+            clipboardy.writeSync(output);
+            console.log('Content has been copied to clipboard!');
+        } else {
+            console.log(output);
         }
     } catch (error) {
         console.error('Error:', error instanceof Error ? error.message : String(error));
         process.exit(1);
+    } finally {
+        // Clean up temporary directory if it was created
+        if (tempDir) {
+            removeTempDir(tempDir);
+        }
     }
+}
+
+interface GitInfo {
+    url: string;
+    branch?: string;
 }

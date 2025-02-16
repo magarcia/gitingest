@@ -1,4 +1,4 @@
-# Git Ingest ✨ 
+# Git Ingest 
 
 Turn any Git repository into a simple text digest of its codebase.
 
@@ -11,6 +11,7 @@ Inspired by [gitingest.com](https://gitingest.com/)
 - Extracts text content from all files in a git repository
 - Generates a tree structure of the repository
 - Respects `.gitignore` rules
+- Supports additional ignore patterns via `--ignore` flag
 - Automatically detects and skips binary files
 - Provides clear file separation in output
 - Supports multiple repository input formats:
@@ -19,6 +20,7 @@ Inspired by [gitingest.com](https://gitingest.com/)
   - GitHub web URLs (with branch support)
   - GitLab web URLs (with branch support)
 - Optional clipboard support
+- Built-in help with examples (`--help`)
 - Cross-platform support (Windows, macOS, Linux)
 - Written in TypeScript with full type safety
 
@@ -40,6 +42,9 @@ Once installed, the tool can be executed as `git ingest`.
 ### Basic Usage
 
 ```bash
+# Show help and available options
+git ingest --help
+
 # Process current directory
 git ingest
 
@@ -49,6 +54,10 @@ git ingest /path/to/repo
 # Copy output to clipboard instead of printing
 git ingest -c
 git ingest --copy
+
+# Ignore specific files or patterns
+git ingest --ignore "*.log"
+git ingest --ignore "temp/*" --ignore "docs/*.md"
 ```
 
 ### Remote Repositories
@@ -67,12 +76,36 @@ git ingest https://gitlab.com/username/repo/-/tree/branch
 # Direct Git URLs
 git ingest git@github.com:username/repo.git
 git ingest https://github.com/username/repo.git
+
+# With ignore patterns
+git ingest https://github.com/username/repo --ignore "*.test.js" --ignore "dist/*"
 ```
 
 When using a remote repository URL:
 1. The repository is cloned to a temporary directory
 2. Content is extracted
 3. Temporary directory is automatically cleaned up
+
+### Ignore Patterns
+
+The tool supports ignoring files and directories using glob patterns:
+
+```bash
+# Ignore all log files
+git ingest --ignore "*.log"
+
+# Ignore multiple patterns
+git ingest --ignore "temp/*" --ignore "docs/*.md"
+
+# Ignore test files in any directory
+git ingest --ignore "**/*.test.js"
+```
+
+Ignore patterns:
+- Can be specified multiple times with `--ignore`
+- Use the same glob syntax as `.gitignore`
+- Are applied in addition to existing `.gitignore` rules
+- Affect both content extraction and tree structure
 
 ### Output Format
 
