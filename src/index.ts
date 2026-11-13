@@ -7,7 +7,6 @@ import os from 'os';
 import crypto from 'crypto';
 import { execSync } from 'child_process';
 import clipboardy from 'clipboardy';
-import { rimraf } from 'rimraf';
 
 /**
  * Converts a GitHub or GitLab web URL to a git URL
@@ -295,8 +294,7 @@ function cloneRepository(gitInfo: GitInfo, targetDir: string): void {
  */
 function removeTempDir(dir: string): void {
     try {
-        // Use rimraf for cross-platform directory removal
-        rimraf.sync(dir);
+        fs.rmSync(dir, { recursive: true, force: true, maxRetries: 3 });
     } catch (error) {
         console.error(`Warning: Failed to remove temporary directory ${dir}: ${error instanceof Error ? error.message : String(error)}`);
     }
@@ -398,7 +396,7 @@ if (require.main === module) {
         }
     } catch (error) {
         console.error('Error:', error instanceof Error ? error.message : String(error));
-        process.exit(1);
+        process.exitCode = 1;
     } finally {
         // Clean up temporary directory if it was created
         if (tempDir) {

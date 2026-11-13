@@ -2,7 +2,7 @@
   "name": "@magarcia/gitingest",
   "version": "1.1.0",
   "description": "A tool to turn any Git repository into a simple text digest of its codebase.",
-  "type": "module",
+  "type": "commonjs",
   "main": "dist/index.js",
   "bin": {
     "git-ingest": "./dist/index.js"
@@ -12,7 +12,8 @@
     "dev": "ts-node src/index.ts",
     "prepare": "npm run build",
     "lint": "eslint src/",
-    "clean": "rimraf dist"
+    "clean": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\"",
+    "test": "npm run build && node test/runtime.cjs"
   },
   "keywords": [
     "git",
@@ -41,11 +42,10 @@
   "dependencies": {
     "clipboardy": "^2.3.0",
     "glob": "^7.2.0",
-    "ignore": "^5.2.0",
-    "rimraf": "^5.0.0"
+    "ignore": "^5.2.0"
   },
   "engines": {
-    "node": ">=12.0.0"
+    "node": ">=14.14.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.20.0",

@@ -29,7 +29,7 @@ Inspired by [gitingest.com](https://gitingest.com/)
 
 ## Requirements
 
-- Node.js >= 12.0.0
+- Node.js >= 14.14.0
 - Git installed and available in PATH
 
 ## Installation
@@ -168,7 +168,7 @@ To contribute to this project, please follow these steps:
 
 ### Prerequisites
 
-- Node.js (v14 or later)
+- Node.js (v14.14.0 or later)
 - npm or yarn
 
 ### Setup
@@ -183,6 +183,7 @@ To contribute to this project, please follow these steps:
 
 - `npm run build` - Builds the TypeScript code
 - `npm run dev` - Runs the tool in development mode
+- `npm test` - Checks CLI output, temporary directory cleanup, and package exports
 
 
 ## Contributing
