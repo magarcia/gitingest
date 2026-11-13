@@ -1,6 +1,6 @@
 {
   "name": "@magarcia/gitingest",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "A tool to turn any Git repository into a simple text digest of its codebase.",
   "type": "commonjs",
   "main": "dist/index.js",
